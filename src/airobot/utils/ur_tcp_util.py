@@ -763,3 +763,143 @@ class SecondaryMonitor(Thread):
         if self._socket:
             with self._prog_queue_lock:
                 self._socket.close()
+
+
+class RealtimeMonitor(Thread):
+    def __init__(self, host):
+        Thread.__init__(self)
+        self.logger = logging.getLogger('realtime_monitor')
+        self.daemon = True
+        self._stop_event = True
+        self._data_event = Condition()
+        self._data_lock = Lock()
+        self._rt_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._rt_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        
+        self.host = host
+
+        self._tstamp = None
+        self._ctrl_tstamp = None
+        self.q_actual = None
+        self.q_target = None
+        self.tcp = None
+        self.tcp_force = None
+        self._recv_time = 0
+        self._last_ctrl_tstamp = 0
+
+        self._buffering = False
+        self._buffer_lock = Lock()
+        self._buffer = []
+        self._csys = None
+        self._csys_lock = Lock()
+
+        self.rt_strcut692 = struct.Struct(
+            '>'
+        )
+        self.rt_struct540 = struct.Struct(
+            '>'
+        )
+
+    def set_csys(self, csys):
+        with self._csys_lock:
+            self._csys = csys
+
+    def _recv_bytes(self, n_bytes):
+        recv_time = 0
+        pkg = b''
+        while len(pkg) < n_bytes:
+            pkg += self._rt_socket.recv(n_bytes - len(pkg))
+            if recv_time == 0:
+                recv_time = time.time()
+        self._recv_time = recv_time 
+        return pkg
+
+    def wait(self):
+        with self._data_event:
+            self._data_event.wait()
+
+    def _recv_rt_data(self):
+        header = self._recv_bytes(4)
+
+        tstamp = self._recv_time
+        pkgsize = struct.unpack('>i', header)[0]
+        self.logger.debug(
+            'Received header telling us this package is %s bytes long',
+            pkgsize
+        )
+        payload = self._recv_bytes(pkgsizeu - 4)
+        if pkgsize >= 692:
+            unp = self.rt_strcut692.unpack(payload[:self.rt_strcut692.size])
+        elif pkgsize >= 540:
+            unp = self.rt_struct540.unpack(payload[:self.rt_struct540.size])
+        else:
+            self.logger.warning(
+                'Error: received packet of length smaller than 540: %s',
+                pkgsize)
+            )
+        
+        with self._data_lock:
+            self._tstamp = tstamp
+            self._ctrl_tstamp = np.array(unp[0])
+            if self._last_ctrl_tstamp != 0 and (
+                    self._ctrl_tstamp - self._last_ctrl_tstamp) > 0.01:
+                self.logger.warning(
+                    'Error: the controller failed to send us a packet'
+                    ' time since last packet: %s s',
+                    self._ctrl_tstamp - self._last_ctrl_tstamp 
+                )
+            self._last_ctrl_tstamp = self._ctrl_tstamp
+
+        if self._buffering:
+            with self._buffer_lock:
+                self._buffer.append(
+                    (self._tstamp,
+                    self._ctrl_tstamp))
+
+        with self._data_event:
+            self._data_event.notifyAll()
+
+    def start_buffering(self):
+        self._buffer = []
+        self._buffering = True
+
+    def stop_buffering(self):
+        self._buffering = False
+
+    def try_pop_buffer(self):
+        with self._buffer_lock:
+            if len(self._buffer) > 0:
+                return self._buffer.pop(0)
+            else:
+                return None
+
+    def pop_buffer(self):
+        while True:
+            with self._buffer_lock:
+                if len(self._buffer) > 0:
+                    return self._buffer.pop(0)
+            time.sleep(0.001)
+
+    def get_buffer(self):
+        with self._buffer_lock:
+            return deepcopy(self._buffer)
+
+    def get_all_data(self, wait=True):
+        if wait:
+            self.wait()
+        with self._data_lock:
+            # TODO get dict of everything
+
+    def stop(self):
+        self._stop_event = True
+
+    def close(self):
+        self.stop()
+        self.joint()
+
+    def run(self):
+        self._stop_event = False
+        self._rt_socket.connect((self.host, 30003))
+        while not self._stop_event:
+            self._recv_rt_data()
+        self._rt_socket.close()
