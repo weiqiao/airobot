@@ -80,15 +80,17 @@ class EvalPoke():
                       quat=obj_start[-4:])
         self.set_goal(pos=[obj_end[0], obj_end[1], self.env.box_z],
                       quat=obj_end[-4:])
+        init_dist = np.sqrt((obj_start[0]-obj_end[0])**2 + (obj_start[1]-obj_end[1])**2)
         _, _ = self.env.execute_poke(poke[0], poke[1], poke[2], poke[3])
         _, _ = self.env.get_img()
         curr_pos, _, _, _ = self.env.get_box_pose()
         dist = np.sqrt((curr_pos[0]-obj_end[0])**2 + (curr_pos[1]-obj_end[1])**2)
+        relative_location_error = dist/init_dist
         # remove target box
         self.env.remove_box(self.box_id2)
         self.box_id2 = None
-        print('%.3f' % dist)
-        return dist
+        print('%.3f %.3f' % (dist, relative_location_error))
+        return relative_location_error
 
 
     def forward_poke(self, poke_dir, attempt_idx):
@@ -138,7 +140,7 @@ class EvalPoke():
         # _, _ = self.env.get_img()
 
 
-    def batch_eval(self, gtfile, pdfile, tag, test_num=100):
+    def batch_eval(self, gtfile, pdfile, tag, test_num=1):
         """
         batch eval predictions
         """
@@ -157,7 +159,8 @@ class EvalPoke():
         if (self.gt is None) or (self.pd is None):
             raise ValueError('load ground truth and prediction file')
         accu_dist = 0.0
-        query = np.random.randint(0, len(self.pd)-1, test_num) # len-1 avoids end row access
+        # query = np.random.randint(0, len(self.pd)-1, test_num) # len-1 avoids end row access
+        query = range(100)
         dist_list = []
         for i in query:
             img_idx = int(self.pd[i][0])
@@ -183,7 +186,7 @@ class EvalPoke():
             curr_dist = self.eval_poke(poke, obj_start, obj_end)
             accu_dist += curr_dist
             dist_list.append(curr_dist)
-        np.savetxt('poke_eval/' + pdfile[11:], np.array(dist_list))
+        np.savetxt('poke_eval/relative_location_error.txt', np.array(dist_list))
         return accu_dist / len(query)
 
 
@@ -227,7 +230,7 @@ if __name__ == '__main__':
     parser.add_argument('--tag', default='gt', help='world, wpoke, joint or pixel, default is gt')
     parser.add_argument('--num', type=int, default=100, help='test num')
     args = parser.parse_args()
-    eva = EvalPoke(ifRender=args.render)
+    eva = EvalPoke(ifRender=True)
 
     if (args.gt is not None) and (args.pd is not None):
         accu_dist = eva.batch_eval(args.gt, args.pd, args.tag, args.num)
