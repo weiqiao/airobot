@@ -195,7 +195,7 @@ class EvalPoke():
 		self.obj_start = self.data[self.index-1, obx:qt4+1]
 		self.obj_end = self.data[self.index, obx:qt4+1]
 		self.obj_end[0] += 0.2
-		self.obj_end[1] += 0.2
+		self.obj_end[1] -= 0.1
 
 		if not ifRender:
 			self.initial_img = imread( os.path.join(self.des_path, str(self.index-1) + '.png') )
@@ -231,7 +231,8 @@ class EvalPoke():
 				rel_dist_err.append(cost/init_cost)
 
 			small_img, depth = self.env.get_img()
-			cv2.imwrite('norender' + str(i) + '.png', small_img)
+			# cv2.imwrite('norender' + str(i) + '.png', small_img)
+			cv2.imwrite('norender' + str(i) + '.png', self.final_img)
 			small_img /= 255.
 			small_img = self.transform(small_img).reshape(1,3,100,200).cuda()
 			act = self.model.inverse(small_img, self.final_img_transformed)
@@ -272,7 +273,8 @@ class EvalPoke():
 						quat=self.obj_start[-4:])
 		init_cost = 1
 		rel_dist_err = []
-		for i in range(6):
+		l = len(act_list)
+		for i in range(l):
 			if self.box_pos is not None:
 				self.env.reset_box(pos=[self.box_pos[i,0], self.box_pos[i,1], self.env.box_z],
 						quat=self.box_pos[i,-4:])
@@ -312,6 +314,7 @@ class EvalPoke():
 		dist = np.sqrt((curr_pos[0]-self.obj_end[0])**2 + (curr_pos[1]-self.obj_end[1])**2)
 		cost = dist
 		rel_dist_err.append(cost/init_cost)
+		time.sleep(4)
 		return rel_dist_err
 
 
@@ -392,13 +395,13 @@ if __name__ == '__main__':
 			model_number=model_number)
 		act_list,rel_dist_err,box_pos = a.eval_poke()
 		print(rel_dist_err)
-		np.save('act_list3_dir/act_list_1_100_' + str(index), act_list)
-		np.save('rel_dist3_err_dir/rel_dist_err_1_100_' + str(index), rel_dist_err)
-		np.save('box_pos3_dir/box_pos_1_100_' + str(index), box_pos)
+		np.save('act_list3_2_dir/act_list_1_100_' + str(index), act_list)
+		np.save('rel_dist3_2_err_dir/rel_dist_err_1_100_' + str(index), rel_dist_err)
+		np.save('box_pos3_2_dir/box_pos_1_100_' + str(index), box_pos)
 		print(act_list)	
 	else:	
-		act_list = np.load('act_list3_dir/act_list_1_100_' + str(index) + '.npy')
-		box_pos = np.load('box_pos3_dir/box_pos_1_100_' + str(index) + '.npy')
+		act_list = np.load('act_list3_2_dir/act_list_1_100_' + str(index) + '.npy')
+		box_pos = np.load('box_pos3_2_dir/box_pos_1_100_' + str(index) + '.npy')
 		# box_pos = None
 		# from IPython import embed
 		# embed()
@@ -408,5 +411,5 @@ if __name__ == '__main__':
 			model_path=model_path,
 			model_number=model_number)
 		rel_dist_err = b.animation(act_list)
-		np.save('rel_dist3_err_dir_render/rel_dist_err_1_100_' + str(index), rel_dist_err)
+		np.save('rel_dist3_2_err_dir_render/rel_dist_err_1_100_' + str(index), rel_dist_err)
 
