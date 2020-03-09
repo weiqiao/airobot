@@ -273,8 +273,8 @@ class EvalPoke():
 						quat=self.obj_start[-4:])
 		init_cost = 1
 		rel_dist_err = []
-		l = len(act_list)
-		for i in range(l):
+		l1 = len(act_list)
+		for i in range(l1):
 			if self.box_pos is not None:
 				self.env.reset_box(pos=[self.box_pos[i,0], self.box_pos[i,1], self.env.box_z],
 						quat=self.box_pos[i,-4:])

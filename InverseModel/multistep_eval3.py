@@ -235,6 +235,11 @@ class EvalPoke():
 			small_img /= 255.
 			small_img = self.transform(small_img).reshape(1,3,100,200).cuda()
 			act = self.model.inverse(small_img, self.final_img_transformed)
+			### see how lorge the forward model output is 
+			# from IPython import embed
+			# embed()
+			# phi_img = self.model.encoder(small_img)
+			# self.model.forward_dynamics(torch.cat((phi_img, act),1))
 			act = act.detach().cpu().numpy()[0]
 			l = self.env.box_size + self.env.stick_size
 			if abs(act[0] - curr_pos[0]) < l:
@@ -272,7 +277,8 @@ class EvalPoke():
 						quat=self.obj_start[-4:])
 		init_cost = 1
 		rel_dist_err = []
-		for i in range(6):
+		l1 = len(act_list)
+		for i in range(l1):
 			if self.box_pos is not None:
 				self.env.reset_box(pos=[self.box_pos[i,0], self.box_pos[i,1], self.env.box_z],
 						quat=self.box_pos[i,-4:])
@@ -312,6 +318,7 @@ class EvalPoke():
 		dist = np.sqrt((curr_pos[0]-self.obj_end[0])**2 + (curr_pos[1]-self.obj_end[1])**2)
 		cost = dist
 		rel_dist_err.append(cost/init_cost)
+		time.sleep(4)
 		return rel_dist_err
 
 
